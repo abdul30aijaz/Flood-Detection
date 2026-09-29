@@ -94,7 +94,7 @@ with st.form("flood_risk_form"):
                 step=float(limits["step"]),
                 format=limits["format"],
             )
-    submitted = st.form_submit_button("Assess flood risk", type="primary", use_container_width=True)
+    submitted = st.form_submit_button("Assess flood risk", type="primary", width="stretch")
 
 if submitted and artifacts is not None:
     xgb_model, kmeans_model, scaler, feature_columns, environmental_features = artifacts
@@ -103,15 +103,19 @@ if submitted and artifacts is not None:
             [[submitted_values[feature] for feature in environmental_features]],
             columns=environmental_features,
         )
-        scaled_input = scaler.transform(input_frame)
+        scaled_input = pd.DataFrame(
+            scaler.transform(input_frame), columns=environmental_features
+        )
         cluster_label = int(kmeans_model.predict(scaled_input)[0])
 
-        model_input = pd.DataFrame(scaled_input, columns=environmental_features)
+        model_input = scaled_input.copy()
         model_input["cluster_label"] = cluster_label
         model_input = model_input.reindex(columns=feature_columns)
 
         probability_index = list(xgb_model.classes_).index(1)
-        flood_probability = float(xgb_model.predict_proba(model_input)[0, probability_index])
+        probabilities = xgb_model.predict_proba(model_input)[0]
+        flood_probability = float(probabilities[probability_index])
+        no_flood_probability = float(probabilities[list(xgb_model.classes_).index(0)])
         if flood_probability < LOW_RISK_THRESHOLD:
             risk_level, badge_color = "Low", "#247a45"
         elif flood_probability < HIGH_RISK_THRESHOLD:
@@ -130,5 +134,67 @@ if submitted and artifacts is not None:
         st.write(
             f"Based on your inputs, this matches a {cluster_risk.lower()} risk cluster region."
         )
+
+        st.subheader("Flood probability breakdown")
+        probability_chart = pd.DataFrame(
+            {
+                "Outcome": ["No flood", "Flood"],
+                "Probability": [no_flood_probability, flood_probability],
+            }
+        )
+        st.bar_chart(
+            probability_chart,
+            x="Outcome",
+            y="Probability",
+            color="Outcome",
+        )
+        st.caption(
+            f"Risk bands use flood probability: Low < {LOW_RISK_THRESHOLD:.0%}, "
+            f"Medium < {HIGH_RISK_THRESHOLD:.0%}, otherwise High."
+        )
+
+        st.subheader("Input scaling calculation")
+        calculation_table = pd.DataFrame(
+            {
+                "Input value": [submitted_values[feature] for feature in environmental_features],
+                "Training mean": scaler.mean_,
+                "Training scale": scaler.scale_,
+                "Standardized value": scaled_input.iloc[0].tolist(),
+            },
+            index=environmental_features,
+        )
+        st.dataframe(calculation_table.style.format("{:.4f}"), width="stretch")
+        st.caption(
+            "Standardized value = (input - training mean) / training scale. "
+            "K-Means assigns the standardized inputs to the nearest cluster center."
+        )
+
+        st.subheader("Distance to each cluster")
+        cluster_distances = kmeans_model.transform(scaled_input)[0]
+        distance_chart = pd.DataFrame(
+            {
+                "Cluster": [
+                    f"Cluster {index} - {CLUSTER_RISK_LABELS.get(index, 'Unmapped')}"
+                    for index in range(len(cluster_distances))
+                ],
+                "Distance": cluster_distances,
+            }
+        )
+        st.bar_chart(distance_chart, x="Cluster", y="Distance", color="Cluster")
+
+        st.subheader("Model feature importance")
+        importance_chart = pd.DataFrame(
+            {
+                "Feature": feature_columns,
+                "Importance": xgb_model.feature_importances_,
+            }
+        ).sort_values("Importance", ascending=False)
+        st.bar_chart(
+            importance_chart,
+            x="Feature",
+            y="Importance",
+            horizontal=True,
+        )
+        st.caption("Feature importance describes model influence, not causal effects.")
     except Exception as error:
         st.error(f"Could not calculate flood risk: {error}")
