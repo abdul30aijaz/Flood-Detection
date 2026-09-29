@@ -4,6 +4,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 import streamlit as st
+from xgboost import XGBClassifier
 
 
 st.set_page_config(page_title="Flood Risk Assessment", layout="centered")
@@ -11,7 +12,7 @@ st.set_page_config(page_title="Flood Risk Assessment", layout="centered")
 PROJECT_ROOT = Path(__file__).resolve().parent
 MODELS_DIR = PROJECT_ROOT / "models"
 FEATURE_COLUMNS_PATH = MODELS_DIR / "feature_columns.json"
-MODEL_PATH = MODELS_DIR / "xgb_flood_model.joblib"
+MODEL_PATH = MODELS_DIR / "xgb_flood_model.json"
 KMEANS_PATH = MODELS_DIR / "kmeans_model.joblib"
 SCALER_PATH = MODELS_DIR / "scaler.joblib"
 
@@ -52,8 +53,11 @@ def load_artifacts():
     if set(environmental_features) != set(INPUT_RANGES):
         raise ValueError("feature_columns.json does not match the app's eight input fields.")
 
+    xgb_model = XGBClassifier()
+    xgb_model.load_model(str(MODEL_PATH))
+
     return (
-        joblib.load(MODEL_PATH),
+        xgb_model,
         joblib.load(KMEANS_PATH),
         joblib.load(SCALER_PATH),
         feature_columns,
