@@ -1,0 +1,7 @@
+-r requirements.txt
+GDAL
+rasterio
+opencv-python
+matplotlib
+seaborn
+jupyter
