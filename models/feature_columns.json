@@ -1,0 +1,11 @@
+[
+  "rainfall",
+  "soil_moisture",
+  "humidity",
+  "ndvi",
+  "ndwi",
+  "elevation",
+  "slope",
+  "temperature",
+  "cluster_label"
+]
