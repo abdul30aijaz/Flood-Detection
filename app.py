@@ -70,7 +70,10 @@ except FileNotFoundError as error:
     st.error(f"Model files are missing. Add the Stage 3 model artifacts to the models folder. {error}")
     artifacts = None
 except Exception as error:
-    st.error(f"Could not load model artifacts: {error}")
+    st.error(
+        f"Could not load model artifacts: {error}. "
+        "Check that the XGBoost version matches the version used to save the classifier."
+    )
     artifacts = None
 
 with st.form("flood_risk_form"):
